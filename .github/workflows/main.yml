@@ -9,49 +9,29 @@ jobs:
     timeout-minutes: 3600
 
     steps:
-      - name: Configure Core RDP Settings
+      - name: Configure Core RDP Settings & Virtual Screen Core
         run: |
-          # Enable Remote Desktop and disable Network Level Authentication (if needed)
-          Set-ItemProperty -Path 'HKLM:\System\CurrentControlSet\Control\Terminal Server' `
-                             -Name "fDenyTSConnections" -Value 0 -Force
-          Set-ItemProperty -Path 'HKLM:\System\CurrentControlSet\Control\Terminal Server\WinStations\RDP-Tcp' `
-                             -Name "UserAuthentication" -Value 0 -Force
-          Set-ItemProperty -Path 'HKLM:\System\CurrentControlSet\Control\Terminal Server\WinStations\RDP-Tcp' `
-                             -Name "SecurityLayer" -Value 0 -Force
-
-          # Remove any existing rule with the same name to avoid duplication
+          Set-ItemProperty -Path 'HKLM:\System\CurrentControlSet\Control\Terminal Server' -Name "fDenyTSConnections" -Value 0 -Force
+          Set-ItemProperty -Path 'HKLM:\System\CurrentControlSet\Control\Terminal Server\WinStations\RDP-Tcp' -Name "UserAuthentication" -Value 0 -Force
+          Set-ItemProperty -Path 'HKLM:\System\CurrentControlSet\Control\Terminal Server\WinStations\RDP-Tcp' -Name "SecurityLayer" -Value 0 -Force
           netsh advfirewall firewall delete rule name="RDP-Tailscale"
-          
-          # For testing, allow any incoming connection on port 3389
-          netsh advfirewall firewall add rule name="RDP-Tailscale" `
-            dir=in action=allow protocol=TCP localport=3389
-
-          # (Optional) Restart the Remote Desktop service to ensure changes take effect
+          netsh advfirewall firewall add rule name="RDP-Tailscale" dir=in action=allow protocol=TCP localport=3389
           Restart-Service -Name TermService -Force
 
       - name: Create RDP User with Secure Password
         run: |
           Add-Type -AssemblyName System.Security
-          $charSet = @{
-              Upper   = [char[]](65..90)      # A-Z
-              Lower   = [char[]](97..122)     # a-z
-              Number  = [char[]](48..57)      # 0-9
-              Special = ([char[]](33..47) + [char[]](58..64) +
-                         [char[]](91..96) + [char[]](123..126)) # Special characters
-          }
-          $rawPassword = @()
-          $rawPassword += $charSet.Upper | Get-Random -Count 4
-          $rawPassword += $charSet.Lower | Get-Random -Count 4
-          $rawPassword += $charSet.Number | Get-Random -Count 4
-          $rawPassword += $charSet.Special | Get-Random -Count 4
-          $password = -join ($rawPassword | Sort-Object { Get-Random })
-          $securePass = ConvertTo-SecureString $password -AsPlainText -Force
-          New-LocalUser -Name "RDP" -Password $securePass -AccountNeverExpires
+          \(charSet = @{               Upper   = [char[]](65..90)               Lower   = [char[]](97..122)               Number  = [char[]](48..57)               Special = ([char[]](33..47) + [char[]](58..64) + [char[]](91..96) + [char[]](123..126))           }\)rawPassword = @()
+          rawPassword += charSet.Upper | Get-Random -Count 4
+          rawPassword += charSet.Lower | Get-Random -Count 4
+          rawPassword += charSet.Number | Get-Random -Count 4
+          rawPassword += charSet.Special | Get-Random -Count 4
+          password = -join (rawPassword | Sort-Object { Get-Random })
+          securePass = ConvertTo-SecureString password -AsPlainText -Force
+          New-LocalUser -Name "RDP" -Password \$securePass -AccountNeverExpires
           Add-LocalGroupMember -Group "Administrators" -Member "RDP"
           Add-LocalGroupMember -Group "Remote Desktop Users" -Member "RDP"
-          
-          echo "RDP_CREDS=User: RDP | Password: $password" >> $env:GITHUB_ENV
-          
+          echo "RDP_CREDS=User: RDP | Password: password" >> env:GITHUB_ENV
           if (-not (Get-LocalUser -Name "RDP")) {
               Write-Error "User creation failed"
               exit 1
@@ -59,55 +39,80 @@ jobs:
 
       - name: Install Tailscale
         run: |
-          $tsUrl = "https://pkgs.tailscale.com/stable/tailscale-setup-1.82.0-amd64.msi"
-          $installerPath = "$env:TEMP\tailscale.msi"
-          
-          Invoke-WebRequest -Uri $tsUrl -OutFile $installerPath
+          \$tsUrl = "https://pkgs.tailscale.com/stable/tailscale-setup-1.82.0-amd64.msi"
+          installerPath = "env:TEMP\tailscale.msi"
+          Invoke-WebRequest -Uri tsUrl -OutFile installerPath
           Start-Process msiexec.exe -ArgumentList "/i", "`"$installerPath`"", "/quiet", "/norestart" -Wait
-          Remove-Item $installerPath -Force
+          Remove-Item \$installerPath -Force
 
       - name: Establish Tailscale Connection
         run: |
-          # Bring up Tailscale with the provided auth key and set a unique hostname
-          & "$env:ProgramFiles\Tailscale\tailscale.exe" up --authkey=${{ secrets.TAILSCALE_AUTH_KEY }} --hostname=gh-runner-$env:GITHUB_RUN_ID
-          
-          # Wait for Tailscale to assign an IP
-          $tsIP = $null
-          $retries = 0
-          while (-not $tsIP -and $retries -lt 10) {
-              $tsIP = & "$env:ProgramFiles\Tailscale\tailscale.exe" ip -4
+          & "\(env:ProgramFiles\Tailscale\tailscale.exe" up --authkey=\){{ secrets.TAILSCALE_AUTH_KEY }} --hostname=gh-runner-\(env:GITHUB_RUN_ID\)tsIP = \(null\)retries = 0
+          while (-not tsIP -and retries -lt 10) {
+              \(tsIP = & "\)env:ProgramFiles\Tailscale\tailscale.exe" ip -4
               Start-Sleep -Seconds 5
-              $retries++
+              \$retries++
           }
-          
-          if (-not $tsIP) {
+          if (-not \$tsIP) {
               Write-Error "Tailscale IP not assigned. Exiting."
               exit 1
           }
-          echo "TAILSCALE_IP=$tsIP" >> $env:GITHUB_ENV
+          echo "TAILSCALE_IP=tsIP" >> env:GITHUB_ENV
       
       - name: Verify RDP Accessibility
         run: |
-          Write-Host "Tailscale IP: $env:TAILSCALE_IP"
-          
-          # Test connectivity using Test-NetConnection against the Tailscale IP on port 3389
-          $testResult = Test-NetConnection -ComputerName $env:TAILSCALE_IP -Port 3389
-          if (-not $testResult.TcpTestSucceeded) {
+          Write-Host "Tailscale IP: \$env:TAILSCALE_IP"
+          testResult = Test-NetConnection -ComputerName env:TAILSCALE_IP -Port 3389
+          if (-not \$testResult.TcpTestSucceeded) {
               Write-Error "TCP connection to RDP port 3389 failed"
               exit 1
           }
           Write-Host "TCP connectivity successful!"
 
-      - name: Maintain Connection
+      - name: Deploy Shielded Brave Core & Dependencies
+        run: |
+          \$braveUrl = "https://brave.com"
+          installerPath = "env:TEMP\brave_installer.exe"
+          curl.exe -L -o installerPath braveUrl
+          Start-Process -FilePath \$installerPath -ArgumentList "--silent", "--install" -Wait
+          Remove-Item \$installerPath -Force
+
+      - name: Inject Secure Cloud Profiles Architecture
+        run: |
+          \$fileId = "162PEqqxY0Z-sOuxIWoj6p6zUpdCfdc9V"
+          zipOutputPath = "env:TEMP\MasterFarmData.zip"
+          braveDataPath = "env:LOCALAPPDATA\BraveSoftware\Brave-Browser"
+          if (Test-Path braveDataPath) Remove-Item braveDataPath -Recurse -Force | Out-Null }
+          New-Item -ItemType Directory -Force -Path \$braveDataPath | Out-Null
+          \(downloadUrl = "https://google.com\)fileId&confirm=t"
+          curl.exe -L -A "Mozilla/5.0 (Windows NT 10.0; Win64; x64)" -o zipOutputPath downloadUrl
+          Add-Type -AssemblyName System.IO.Compression.FileSystem
+          [System.IO.Compression.ZipFile]::ExtractToDirectory(zipOutputPath, braveDataPath)
+          Remove-Item \$zipOutputPath -Force
+
+      - name: Open 25 Shielded Farm Profiles Natively
+        run: |
+          bravePath = "env:ProgramFiles\BraveSoftware\Brave-Browser\Application\brave.exe"
+          if (-not (Test-Path \$bravePath)) { bravePath = "env:ProgramFiles(x86)\BraveSoftware\Brave-Browser\Application\brave.exe" }
+          if (-not (Test-Path \$bravePath)) { bravePath = "env:LOCALAPPDATA\BraveSoftware\Brave-Browser\Application\brave.exe" }
+          Start-Process \$bravePath -ArgumentList "--profile-directory=""Default"""
+          for (\$i = 1; i -le 24; i++) {
+              Start-Process bravePath -ArgumentList "--profile-directory=""Profile i"""
+              Start-Sleep -Milliseconds 500
+          }
+
+      - name: Maintain Connection & Prevent GUI Freeze Loop
         run: |
           Write-Host "`n=== RDP ACCESS ==="
           Write-Host "Address: $env:TAILSCALE_IP"
           Write-Host "Username: RDP"
           Write-Host "Password: $(echo $env:RDP_CREDS)"
           Write-Host "==================`n"
-          
-          # Keep runner active indefinitely (or until manually cancelled)
-          while ($true) {
-              Write-Host "[$(Get-Date)] RDP Active - Use Ctrl+C in workflow to terminate"
-              Start-Sleep -Seconds 300
+          Add-Type -AssemblyName System.Windows.Forms
+          Add-Type -AssemblyName System.Drawing
+          \$timeout = (Get-Date).AddHours(5).AddMinutes(50)
+          while ((Get-Date) -lt \$timeout) {
+              [System.Windows.Forms.Cursor]::Position = New-Object System.Drawing.Point((Get-Random -Min 1 -Max 500), (Get-Random -Min 1 -Max 500))
+              Write-Host "[\$(Get-Date)] Virtual GUI Live - Anti-Lock Triggered Successful"
+              Start-Sleep -Seconds 240
           }
