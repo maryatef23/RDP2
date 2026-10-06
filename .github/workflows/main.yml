@@ -20,12 +20,13 @@ jobs:
 
       - name: Create RDP User with Secure Password
         run: |
-          Add-Type -AssemblyName System.Security
-          \(charSet = @{               Upper   = [char[]](65..90)               Lower   = [char[]](97..122)               Number  = [char[]](48..57)               Special = ([char[]](33..47) + [char[]](58..64) + [char[]](91..96) + [char[]](123..126))           }\)rawPassword = @()
-          rawPassword += charSet.Upper | Get-Random -Count 4
-          rawPassword += charSet.Lower | Get-Random -Count 4
-          rawPassword += charSet.Number | Get-Random -Count 4
-          rawPassword += charSet.Special | Get-Random -Count 4
+          \$upper = [char[]](65..90)
+          \(lower = [char[]](97..122)\)number = [char[]](48..57)
+          \(special = ([char[]](33..47) + [char[]](58..64) + [char[]](91..96) + [char[]](123..126))\)rawPassword = @()
+          rawPassword += upper | Get-Random -Count 4
+          rawPassword += lower | Get-Random -Count 4
+          rawPassword += number | Get-Random -Count 4
+          rawPassword += special | Get-Random -Count 4
           password = -join (rawPassword | Sort-Object { Get-Random })
           securePass = ConvertTo-SecureString password -AsPlainText -Force
           New-LocalUser -Name "RDP" -Password \$securePass -AccountNeverExpires
@@ -39,7 +40,7 @@ jobs:
 
       - name: Install Tailscale
         run: |
-          \$tsUrl = "https://pkgs.tailscale.com/stable/tailscale-setup-1.82.0-amd64.msi"
+          \$tsUrl = "https://tailscale.com"
           installerPath = "env:TEMP\tailscale.msi"
           Invoke-WebRequest -Uri tsUrl -OutFile installerPath
           Start-Process msiexec.exe -ArgumentList "/i", "`"$installerPath`"", "/quiet", "/norestart" -Wait
