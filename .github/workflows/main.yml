@@ -25,7 +25,6 @@ jobs:
           New-LocalUser -Name "RDP" -Password \$securePass -AccountNeverExpires
           Add-LocalGroupMember -Group "Administrators" -Member "RDP"
           Add-LocalGroupMember -Group "Remote Desktop Users" -Member "RDP"
-          
           if (-not (Get-LocalUser -Name "RDP")) {
               Write-Error "User creation failed"
               exit 1
@@ -70,7 +69,6 @@ jobs:
           Write-Host "Username: RDP"
           Write-Host "Password: SecureFarmPass2026!"
           Write-Host "==================`n"
-          
           while (\$true) {
               Write-Host "[\$(Get-Date)] RDP Active - Use Ctrl+C in workflow to terminate"
               Start-Sleep -Seconds 300
