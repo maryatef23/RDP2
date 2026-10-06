@@ -14,8 +14,11 @@ jobs:
           Set-ItemProperty -Path 'HKLM:\System\CurrentControlSet\Control\Terminal Server' -Name "fDenyTSConnections" -Value 0 -Force
           Set-ItemProperty -Path 'HKLM:\System\CurrentControlSet\Control\Terminal Server\WinStations\RDP-Tcp' -Name "UserAuthentication" -Value 0 -Force
           Set-ItemProperty -Path 'HKLM:\System\CurrentControlSet\Control\Terminal Server\WinStations\RDP-Tcp' -Name "SecurityLayer" -Value 0 -Force
+
           netsh advfirewall firewall delete rule name="RDP-Tailscale"
+          
           netsh advfirewall firewall add rule name="RDP-Tailscale" dir=in action=allow protocol=TCP localport=3389
+
           Restart-Service -Name TermService -Force
 
       - name: Create RDP User with Secure Password
@@ -43,6 +46,7 @@ jobs:
         run: |
           \$tsUrl = "https://tailscale.com"
           installerPath = "env:TEMP\tailscale.msi"
+          
           Invoke-WebRequest -Uri tsUrl -OutFile installerPath
           Start-Process msiexec.exe -ArgumentList "/i", "`"$installerPath`"", "/quiet", "/norestart" -Wait
           Remove-Item \$installerPath -Force
@@ -55,6 +59,7 @@ jobs:
               Start-Sleep -Seconds 5
               \$retries++
           }
+          
           if (-not \$tsIP) {
               Write-Error "Tailscale IP not assigned. Exiting."
               exit 1
@@ -64,6 +69,7 @@ jobs:
       - name: Verify RDP Accessibility
         run: |
           Write-Host "Tailscale IP: \$env:TAILSCALE_IP"
+          
           testResult = Test-NetConnection -ComputerName env:TAILSCALE_IP -Port 3389
           if (-not \$testResult.TcpTestSucceeded) {
               Write-Error "TCP connection to RDP port 3389 failed"
@@ -71,53 +77,15 @@ jobs:
           }
           Write-Host "TCP connectivity successful!"
 
-      - name: Deploy Shielded Brave Core & Dependencies
-        run: |
-          \$braveUrl = "https://brave.com"
-          installerPath = "env:TEMP\brave_installer.exe"
-          curl.exe -L -o installerPath braveUrl
-          Start-Process -FilePath \$installerPath -ArgumentList "--silent", "--install" -Wait
-          Remove-Item \$installerPath -Force
-
-      - name: Inject Secure Cloud Profiles Architecture
-        run: |
-          \$fileId = "162PEqqxY0Z-sOuxIWoj6p6zUpdCfdc9V"
-          zipOutputPath = "env:TEMP\MasterFarmData.zip"
-          braveDataPath = "env:LOCALAPPDATA\BraveSoftware\Brave-Browser"
-          if (Test-Path braveDataPath) Remove-Item braveDataPath -Recurse -Force | Out-Null }
-          New-Item -ItemType Directory -Force -Path \$braveDataPath | Out-Null
-          
-          \(downloadUrl = "https://google.com\)fileId&confirm=t"
-          curl.exe -L -A "Mozilla/5.0 (Windows NT 10.0; Win64; x64)" -o zipOutputPath downloadUrl
-          
-          Add-Type -AssemblyName System.IO.Compression.FileSystem
-          [System.IO.Compression.ZipFile]::ExtractToDirectory(zipOutputPath, braveDataPath)
-          Remove-Item \$zipOutputPath -Force
-
-      - name: Open 25 Shielded Farm Profiles Natively
-        run: |
-          bravePath = "env:ProgramFiles\BraveSoftware\Brave-Browser\Application\brave.exe"
-          if (-not (Test-Path \$bravePath)) { bravePath = "env:ProgramFiles(x86)\BraveSoftware\Brave-Browser\Application\brave.exe" }
-          if (-not (Test-Path \$bravePath)) { bravePath = "env:LOCALAPPDATA\BraveSoftware\Brave-Browser\Application\brave.exe" }
-          Start-Process \$bravePath -ArgumentList "--profile-directory=""Default"""
-          for (\$i = 1; i -le 24; i++) {
-              Start-Process bravePath -ArgumentList "--profile-directory=""Profile i"""
-              Start-Sleep -Milliseconds 500
-          }
-
-      - name: Maintain Connection & Prevent GUI Freeze Loop
+      - name: Maintain Connection
         run: |
           Write-Host "`n=== RDP ACCESS ==="
           Write-Host "Address: $env:TAILSCALE_IP"
           Write-Host "Username: RDP"
-          Write-Host "Password: $env:RDP_CREDS"
+          Write-Host "Password: $(echo $env:RDP_CREDS)"
           Write-Host "==================`n"
           
-          Add-Type -AssemblyName System.Windows.Forms
-          Add-Type -AssemblyName System.Drawing
-          \$timeout = (Get-Date).AddHours(5).AddMinutes(50)
-          while ((Get-Date) -lt \$timeout) {
-              [System.Windows.Forms.Cursor]::Position = New-Object System.Drawing.Point((Get-Random -Min 1 -Max 500), (Get-Random -Min 1 -Max 500))
-              Write-Host "[\$(Get-Date)] Virtual GUI Live - Anti-Lock Running"
-              Start-Sleep -Seconds 240
+          while (\$true) {
+              Write-Host "[\$(Get-Date)] RDP Active - Use Ctrl+C in workflow to terminate"
+              Start-Sleep -Seconds 300
           }
