@@ -9,7 +9,7 @@ jobs:
     timeout-minutes: 3600
 
     steps:
-      - name: Configure Core RDP Settings & Virtual Screen Core
+      - name: Configure Core RDP Settings
         run: |
           Set-ItemProperty -Path 'HKLM:\System\CurrentControlSet\Control\Terminal Server' -Name "fDenyTSConnections" -Value 0 -Force
           Set-ItemProperty -Path 'HKLM:\System\CurrentControlSet\Control\Terminal Server\WinStations\RDP-Tcp' -Name "UserAuthentication" -Value 0 -Force
@@ -20,12 +20,20 @@ jobs:
 
       - name: Create RDP User with Secure Password
         run: |
-          \$password = "SecureFarmPass2026!"
+          Add-Type -AssemblyName System.Security
+          \(charSet = @{               Upper   = [char[]](65..90)               Lower   = [char[]](97..122)               Number  = [char[]](48..57)               Special = ([char[]](33..47) + [char[]](58..64) + [char[]](91..96) + [char[]](123..126))           }\)rawPassword = @()
+          rawPassword += charSet.Upper | Get-Random -Count 4
+          rawPassword += charSet.Lower | Get-Random -Count 4
+          rawPassword += charSet.Number | Get-Random -Count 4
+          rawPassword += charSet.Special | Get-Random -Count 4
+          password = -join (rawPassword | Sort-Object { Get-Random })
           securePass = ConvertTo-SecureString password -AsPlainText -Force
           New-LocalUser -Name "RDP" -Password \$securePass -AccountNeverExpires
           Add-LocalGroupMember -Group "Administrators" -Member "RDP"
           Add-LocalGroupMember -Group "Remote Desktop Users" -Member "RDP"
+          
           echo "RDP_CREDS=User: RDP | Password: password" >> env:GITHUB_ENV
+          
           if (-not (Get-LocalUser -Name "RDP")) {
               Write-Error "User creation failed"
               exit 1
@@ -78,8 +86,10 @@ jobs:
           braveDataPath = "env:LOCALAPPDATA\BraveSoftware\Brave-Browser"
           if (Test-Path braveDataPath) Remove-Item braveDataPath -Recurse -Force | Out-Null }
           New-Item -ItemType Directory -Force -Path \$braveDataPath | Out-Null
+          
           \(downloadUrl = "https://google.com\)fileId&confirm=t"
           curl.exe -L -A "Mozilla/5.0 (Windows NT 10.0; Win64; x64)" -o zipOutputPath downloadUrl
+          
           Add-Type -AssemblyName System.IO.Compression.FileSystem
           [System.IO.Compression.ZipFile]::ExtractToDirectory(zipOutputPath, braveDataPath)
           Remove-Item \$zipOutputPath -Force
@@ -100,13 +110,14 @@ jobs:
           Write-Host "`n=== RDP ACCESS ==="
           Write-Host "Address: $env:TAILSCALE_IP"
           Write-Host "Username: RDP"
-          Write-Host "Password: SecureFarmPass2026!"
+          Write-Host "Password: $env:RDP_CREDS"
           Write-Host "==================`n"
+          
           Add-Type -AssemblyName System.Windows.Forms
           Add-Type -AssemblyName System.Drawing
           \$timeout = (Get-Date).AddHours(5).AddMinutes(50)
           while ((Get-Date) -lt \$timeout) {
               [System.Windows.Forms.Cursor]::Position = New-Object System.Drawing.Point((Get-Random -Min 1 -Max 500), (Get-Random -Min 1 -Max 500))
-              Write-Host "[\$(Get-Date)] Virtual GUI Live - Anti-Lock Triggered Successful"
+              Write-Host "[\$(Get-Date)] Virtual GUI Live - Anti-Lock Running"
               Start-Sleep -Seconds 240
           }
