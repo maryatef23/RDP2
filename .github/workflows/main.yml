@@ -20,14 +20,7 @@ jobs:
 
       - name: Create RDP User with Secure Password
         run: |
-          \$upper = [char[]](65..90)
-          \(lower = [char[]](97..122)\)number = [char[]](48..57)
-          \(special = ([char[]](33..47) + [char[]](58..64) + [char[]](91..96) + [char[]](123..126))\)rawPassword = @()
-          rawPassword += upper | Get-Random -Count 4
-          rawPassword += lower | Get-Random -Count 4
-          rawPassword += number | Get-Random -Count 4
-          rawPassword += special | Get-Random -Count 4
-          password = -join (rawPassword | Sort-Object { Get-Random })
+          \$password = "SecureFarmPass2026!"
           securePass = ConvertTo-SecureString password -AsPlainText -Force
           New-LocalUser -Name "RDP" -Password \$securePass -AccountNeverExpires
           Add-LocalGroupMember -Group "Administrators" -Member "RDP"
@@ -107,7 +100,7 @@ jobs:
           Write-Host "`n=== RDP ACCESS ==="
           Write-Host "Address: $env:TAILSCALE_IP"
           Write-Host "Username: RDP"
-          Write-Host "Password: $(echo $env:RDP_CREDS)"
+          Write-Host "Password: SecureFarmPass2026!"
           Write-Host "==================`n"
           Add-Type -AssemblyName System.Windows.Forms
           Add-Type -AssemblyName System.Drawing
